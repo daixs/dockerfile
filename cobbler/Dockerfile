@@ -2,7 +2,6 @@ FROM centos:7.3.1611
 
 RUN localedef -i en_US -f UTF-8 en_US.UTF-8 \
     && yum install yum-utils epel-release wget pykickstart curl -y \
-    && yum-config-manager --add-repo http://mirrors.aliyun.com/repo/epel-7.repo \
     && yum-config-manager --add-repo http://download.opensuse.org/repositories/home:/libertas-ict:/cobbler28/CentOS_7/home:libertas-ict:cobbler28.repo \
     && yum makecache \
     && yum -y install cobbler tftp-server dhcp openssl cobbler-web supervisor \
@@ -25,6 +24,14 @@ COPY tftp /etc/xinetd.d/tftp
 COPY docker-entrypoint.sh /usr/local/bin/
 COPY supervisord.d/conf.ini /etc/supervisord.d/conf.ini
 
-VOLUME /etc/cobbler /var/lib/cobbler /var/www/cobbler /var/log/cobbler /var/lib/tftpboot /etc/xinetd.d/tftp /ios
+ENV Cobbler_SERVER_IP=null \
+    Cobbler_NEXT_SERVER_IP=null \
+    Cobbler_PASSWORD=root \
+    Cobbler_DHCP_SUBNET=null \
+    Cobbler_DHCP_ROUTER=null \
+    Cobbler_DHCP_DNS=114.114.114.114 \
+    Cobbler_DHCP_RANGE=null
+
+VOLUME /etc/cobbler /var/lib/cobbler /var/www/cobbler /var/log/cobbler /var/lib/tftpboot
 
 CMD ["docker-entrypoint.sh"]

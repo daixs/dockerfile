@@ -1,6 +1,5 @@
 #!/bin/sh
 set -e
-
 if [[ ${GIT_URL} != "NULL" ]];then
     git clone ${GIT_URL} /configure
     for n in $(seq 30);do
@@ -17,15 +16,16 @@ if [[ ${GIT_URL} != "NULL" ]];then
 fi
 
 # first arg is `-f` or `--some-option`
-# or first arg is `something.conf`
-if [ "${1#-}" != "$1" ] || [ "${1%.conf}" != "$1" ]; then
-	set -- redis-server "$@"
+if [ "${1#-}" != "$1" ]; then
+	set -- haproxy "$@"
 fi
 
-# allow the container to be started with `--user`
-if [ "$1" = 'redis-server' -a "$(id -u)" = '0' ]; then
-	chown -R redis .
-	exec su-exec redis "$0" "$@"
+if [ "$1" = 'haproxy' ]; then
+	shift # "haproxy"
+	# if the user wants "haproxy", let's add a couple useful flags
+	#   -W  -- "master-worker mode" (similar to the old "haproxy-systemd-wrapper"; allows for reload via "SIGUSR2")
+	#   -db -- disables background mode
+	set -- haproxy -W -db "$@"
 fi
 
 exec "$@"

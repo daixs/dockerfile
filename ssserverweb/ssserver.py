@@ -5,12 +5,27 @@
 import docker,json,os,paramiko,threading,time,re,qrcode,base64,sys
 from PIL import Image
 from flask import Flask,render_template,request,Response,url_for,redirect
-from flask_login import LoginManager,login_user,UserMixin,logout_user,login_required
 from flask_sqlalchemy import SQLAlchemy
 from aliyunsdkcore import client
 from aliyunsdkalidns.request.v20150109 import DescribeDomainRecordsRequest
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////user.db'
+db = SQLAlchemy(app)
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True)
+    email = db.Column(db.String(120), unique=True)
+    port = db.Column(db.String(120), unique=True)
+    passwd = db.Column(db.String(120), unique=True)
+
+    def __init__(self, username, email):
+        self.username = username
+        self.email = email
+
+    def __repr__(self):
+        return '<User %r>' % self.username
 
 global ALIYUN_ID
 global ALIYUN_Secret
@@ -105,9 +120,9 @@ def adduser():
         try:
             client.services.create(
                 name="ss_%s" % (USERNAME),
-                image="daocloud.io/buxiaomo/ssserver:2.8.2",
+                image="daocloud.io/buxiaomo/ssserver:1.2.1",
                 env={
-                    "PASSWORD": PASSWORD
+                    "SS_PASSWORD": PASSWORD
                 },
                 mode=docker.types.ServiceMode(mode="global"),
                 endpoint_spec=docker.types.EndpointSpec(
@@ -117,7 +132,7 @@ def adduser():
                     }
                 ),
                 labels={
-                    "com.docker.stack.image": "daocloud.io/buxiaomo/ssserver:2.8.2",
+                    "com.docker.stack.image": "daocloud.io/buxiaomo/ssserver:1.2.1",
                     "com.docker.stack.namespace": "ss"
                 },
                 constraints=[
@@ -125,12 +140,12 @@ def adduser():
                 ],
                 container_labels={"com.docker.stack.namespace": "ss"},
                 networks=["ss"],
-                log_driver="splunk",
-                log_driver_options={
-                    "splunk-url": SPLUNK_URL,
-                    "splunk-token": SPLUNK_TOKEN,
-                    "tag": "{{.Name}}"
-                },
+                # log_driver="splunk",
+                # log_driver_options={
+                #     "splunk-url": SPLUNK_URL,
+                #     "splunk-token": SPLUNK_TOKEN,
+                #     "tag": "{{.Name}}"
+                # },
                 healthcheck=docker.types.Healthcheck(
                     test="nc -w 1 localhost 8388 -z",
                     interval=10000000000,
@@ -142,7 +157,6 @@ def adduser():
         except:
             result = "error"
         return Response(json.dumps({"result": result}), mimetype='application/json')
-
 
 @app.route('/erweima.html',methods=["Post"])
 def erweima():
@@ -190,11 +204,11 @@ def index():
         HOSTLIST.append(tmp)
     for services in client.services.list():
         tmp = {}
-        if services.name.find("ss_") != -1:
+        if (services.name[:3] == "ss_") and (services.attrs['Endpoint'].has_key("Ports")):
             tmp['name'] = services.name.replace("ss_","")
             if services.attrs['Endpoint']['Ports'][0]['TargetPort'] == 8388:
                 tmp['PublishedPort'] = services.attrs['Endpoint']['Ports'][0]['PublishedPort']
-            tmp['password'] = services.attrs['Spec']['TaskTemplate']['ContainerSpec']['Env'][0].replace("PASSWORD=", "")
+            tmp['password'] = services.attrs['Spec']['TaskTemplate']['ContainerSpec']['Env'][0].replace("SS_PASSWORD=", "")
             tmp['password'] = tmp['password'][:2] + "******" + tmp['password'][len(tmp['password']) - 2:]
             USERLIST.append(tmp)
     return render_template(
